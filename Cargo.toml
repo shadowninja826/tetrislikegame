@@ -2,8 +2,13 @@
 name = "tetris_rust"
 version = "0.1.0"
 edition = "2021"
+authors = ["Soda"]
+description = "A tetris like game for fun."
+license = "MIT"
 
 [dependencies]
 crossterm = "0.26"
 rand = "0.8"
-rodio = "0.17"
+
+# Rodio with MP3 support and full Symphonia decoding features
+rodio = { version = "0.17", features = ["mp3", "symphonia"] }
