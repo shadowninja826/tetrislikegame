@@ -34,7 +34,7 @@ use crossterm::{
     style::{Color, PrintStyledContent, Stylize},
     terminal::{self, ClearType},
     ExecutableCommand, QueueableCommand,
-    execute, // ← add this line
+    execute, 
 };
 
 use rand::seq::SliceRandom;
@@ -67,23 +67,9 @@ fn play_music() {
         }
     });
 }
-/*
-fn play_music() {
-    // Embed MP3 file directly into the compiled binary
-    let bytes = include_bytes!("../assets/791018.mp3");
-    let cursor = Cursor::new(bytes);
 
-    if let Ok((_stream, handle)) = OutputStream::try_default() {
-        if let Ok(decoder) = Decoder::new_looped(cursor) {
-            let sink = Sink::try_new(&handle).unwrap();
-            sink.append(decoder);
-            sink.detach(); // plays in background while game runs
-        }
-    }
-}
-*/
 
-// Board size config — like life, keep it within boundaries
+// Board size config 
 const WIDTH: usize = 10;
 const HEIGHT: usize = 20;
 const TICK_MS: u64 = 500; // gravity tick in milliseconds
@@ -123,7 +109,7 @@ impl Piece {
         let mut current = base.clone();
         for _ in 0..4 {
             rots.push(current.clone());
-            // rotate 90° clockwise — geometry class finally pays off
+            // rotate 90° clockwise 
             current = current.iter().map(|(x, y)| (-*y, *x)).collect();
         }
         rots
@@ -222,7 +208,7 @@ fn draw_board(stdout: &mut impl Write, board: &Board, piece: &Piece, score: usiz
     stdout.queue(cursor::Hide)?;
     stdout.queue(terminal::Clear(ClearType::All))?;
 
-    // Draw top border — like a hat for your game
+    // Draw top border 
     stdout.queue(cursor::MoveTo(0, 0))?;
     writeln!(stdout, "+{}+", "-".repeat(WIDTH))?;
 
