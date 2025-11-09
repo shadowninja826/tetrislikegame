@@ -34,13 +34,56 @@ use crossterm::{
     style::{self, Color, PrintStyledContent, Stylize},
     terminal::{self, ClearType},
     ExecutableCommand, QueueableCommand,
+    execute, // ← add this line
 };
+
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 use std::cmp::max;
 use std::io::{stdout, Write};
 use std::time::{Duration, Instant};
 use std::{thread, usize};
+use std::io::Cursor;
+use rodio::{Decoder, OutputStream, Sink};
+
+
+fn play_music() {
+    use std::thread;
+    use std::io::Cursor;
+    use rodio::{Decoder, OutputStream, Sink, Source};
+
+    thread::spawn(|| {
+        let bytes = include_bytes!("../assets/791018.mp3");
+        let cursor = Cursor::new(bytes);
+
+        if let Ok((_stream, handle)) = OutputStream::try_default() {
+            if let Ok(source) = Decoder::new(cursor) {
+                let sink = Sink::try_new(&handle).unwrap();
+                sink.append(source.repeat_infinite());
+                sink.sleep_until_end(); // keep playing forever
+            } else {
+                eprintln!("⚠️ Could not decode MP3 file.");
+            }
+        } else {
+            eprintln!("⚠️ No audio output stream found (ALSA/PulseAudio missing?)");
+        }
+    });
+}
+/*
+fn play_music() {
+    // Embed MP3 file directly into the compiled binary
+    let bytes = include_bytes!("../assets/791018.mp3");
+    let cursor = Cursor::new(bytes);
+
+    if let Ok((_stream, handle)) = OutputStream::try_default() {
+        if let Ok(decoder) = Decoder::new_looped(cursor) {
+            let sink = Sink::try_new(&handle).unwrap();
+            sink.append(decoder);
+            sink.detach(); // plays in background while game runs
+        }
+    }
+}
+*/
 
 // Board size config — like life, keep it within boundaries
 const WIDTH: usize = 10;
@@ -224,7 +267,10 @@ fn draw_board(stdout: &mut impl Write, board: &Board, piece: &Piece, score: usiz
 }
 
 fn main() -> crossterm::Result<()> {
+    play_music(); // 🎵 start looping cool tetris song assets/791018.mp3
     let mut stdout = stdout();
+    execute!(stdout, terminal::EnterAlternateScreen, cursor::Hide).unwrap();
+    terminal::enable_raw_mode().unwrap();
     terminal::enable_raw_mode()?;
     stdout.execute(terminal::EnterAlternateScreen)?;
     stdout.execute(cursor::Hide)?;
