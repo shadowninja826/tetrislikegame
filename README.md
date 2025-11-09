@@ -10,4 +10,5 @@ cargo build --release
 ./target/release/tetris_rust
 ```
 ignore the warnings after build, it is harmless
-<img width="824" height="594" alt="image" src="https://github.com/user-attachments/assets/b5a83ab5-a662-436d-9cf0-0ea65a0fd33d" />
+<img width="824" height="594" alt="Screenshot from 2025-11-09 17-17-56" src="https://github.com/user-attachments/assets/41cbcf0d-82a1-4616-a987-aa15d7489658" />
+
