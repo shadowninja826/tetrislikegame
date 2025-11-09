@@ -31,7 +31,7 @@ Developer Notes:
 use crossterm::{
     cursor,
     event::{self, Event, KeyCode, KeyEvent},
-    style::{self, Color, PrintStyledContent, Stylize},
+    style::{Color, PrintStyledContent, Stylize},
     terminal::{self, ClearType},
     ExecutableCommand, QueueableCommand,
     execute, // ← add this line
@@ -43,8 +43,6 @@ use std::cmp::max;
 use std::io::{stdout, Write};
 use std::time::{Duration, Instant};
 use std::{thread, usize};
-use std::io::Cursor;
-use rodio::{Decoder, OutputStream, Sink};
 
 
 fn play_music() {
