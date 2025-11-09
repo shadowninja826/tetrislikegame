@@ -24,7 +24,7 @@ Requirements:
 --------------------------------------------------------------
 Developer Notes:
   - Colors added with crossterm::style
-  - Includes jokes because plain code is like unbuttered toast
+  - No microtransactions. 100% ad-free. No DLC.
 ==============================================================
 */
 
