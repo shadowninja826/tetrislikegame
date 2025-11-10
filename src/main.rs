@@ -27,89 +27,61 @@ Developer Notes:
   - No microtransactions. 100% ad-free. No DLC.
 ==============================================================
 */
-
+// [imports]
 use crossterm::{
     cursor,
     event::{self, Event, KeyCode, KeyEvent},
     style::{Color, SetBackgroundColor, ResetColor, Print},
     terminal::{self, ClearType},
-    ExecutableCommand, QueueableCommand,
-    execute,
+    QueueableCommand,
 };
-
 use rand::seq::SliceRandom;
 use rand::thread_rng;
+use rodio::{Decoder, OutputStream, Sink, Source};
 use std::cmp::max;
 use std::io::{stdout, Write};
 use std::time::{Duration, Instant};
-use std::{thread, usize};
+use std::{thread, io::Cursor};
 
-
-fn play_music() {
-    use std::thread;
-    use std::io::Cursor;
-    use rodio::{Decoder, OutputStream, Sink, Source};
-
-    thread::spawn(|| {
-        let bytes = include_bytes!("../assets/791018.mp3");
-        let cursor = Cursor::new(bytes);
-
-        if let Ok((_stream, handle)) = OutputStream::try_default() {
-            if let Ok(source) = Decoder::new(cursor) {
-                let sink = Sink::try_new(&handle).unwrap();
-                sink.append(source.repeat_infinite());
-                sink.sleep_until_end(); // keep playing forever
-            } else {
-                eprintln!("⚠️ Could not decode MP3 file.");
-            }
-        } else {
-            eprintln!("⚠️ No audio output stream found (ALSA/PulseAudio missing?)");
-        }
-    });
-}
-
-
-// Board size config 
+// [constants]
 const WIDTH: usize = 10;
 const HEIGHT: usize = 20;
-const TICK_MS: u64 = 500; // gravity tick in milliseconds
+const TICK_MS: u64 = 500;
 
+// [types]
 #[derive(Clone, Copy, PartialEq)]
 enum Cell {
     Empty,
-    Filled(u8), // id for color/piece type
+    Filled(u8),
 }
 
 type Board = [[Cell; WIDTH]; HEIGHT];
 
 #[derive(Clone)]
 struct Piece {
-    blocks: Vec<(i32, i32)>, // relative coords
-    x: i32,                  // top-left offset in board
+    blocks: Vec<(i32, i32)>,
+    x: i32,
     y: i32,
     id: u8,
 }
 
+// [piece implementation]
 impl Piece {
     fn shape_rotations(name: usize) -> Vec<Vec<(i32, i32)>> {
-        // Basic 7 tetromino shapes
-        // Because rectangles are boring, and squares are overachievers.
-        let shapes0: Vec<Vec<(i32, i32)>> = vec![
-            vec![(-2, 0), (-1, 0), (0, 0), (1, 0)],          // I
-            vec![(0, 0), (1, 0), (0, 1), (1, 1)],            // O
-            vec![(-1, 0), (0, 0), (1, 0), (0, 1)],           // T
-            vec![(-1, 0), (0, 0), (1, 0), (1, 1)],           // J
-            vec![(-1, 0), (0, 0), (1, 0), (-1, 1)],          // L
-            vec![(-1, 1), (0, 1), (0, 0), (1, 0)],           // S
-            vec![(-1, 0), (0, 0), (0, 1), (1, 1)],           // Z
+        let shapes0 = vec![
+            vec![(-2, 0), (-1, 0), (0, 0), (1, 0)],
+            vec![(0, 0), (1, 0), (0, 1), (1, 1)],
+            vec![(-1, 0), (0, 0), (1, 0), (0, 1)],
+            vec![(-1, 0), (0, 0), (1, 0), (1, 1)],
+            vec![(-1, 0), (0, 0), (1, 0), (-1, 1)],
+            vec![(-1, 1), (0, 1), (0, 0), (1, 0)],
+            vec![(-1, 0), (0, 0), (0, 1), (1, 1)],
         ];
-
         let base = &shapes0[name];
         let mut rots = vec![];
         let mut current = base.clone();
         for _ in 0..4 {
             rots.push(current.clone());
-            // rotate 90° clockwise 
             current = current.iter().map(|(x, y)| (-*y, *x)).collect();
         }
         rots
@@ -139,6 +111,7 @@ impl Piece {
     }
 }
 
+// [game logic]
 fn create_empty_board() -> Board {
     [[Cell::Empty; WIDTH]; HEIGHT]
 }
@@ -193,25 +166,22 @@ fn clear_lines(board: &mut Board) -> usize {
 
 fn piece_color(id: u8) -> Color {
     match id {
-        1 => Color::Cyan,    // I
-        2 => Color::Yellow,  // O
-        3 => Color::Magenta, // T
-        4 => Color::Blue,    // J
-        5 => Color::Red,     // L
-        6 => Color::Green,   // S
-        7 => Color::DarkRed, // Z
+        1 => Color::Cyan,
+        2 => Color::Yellow,
+        3 => Color::Magenta,
+        4 => Color::Blue,
+        5 => Color::Red,
+        6 => Color::Green,
+        7 => Color::DarkRed,
         _ => Color::White,
     }
 }
 
-/// Draws the board using BACKGROUND COLOR and double-space cells.
-/// Each logical cell occupies two character columns (" "), which prevents
-/// adjacent cells from visually merging in terminals with tight glyph metrics.
-fn draw_board(stdout: &mut impl Write, board: &Board, piece: &Piece, score: usize) -> crossterm::Result<()> {
+// [rendering]
+fn draw_board(stdout: &mut impl Write, board: &Board, piece: &Piece, next_piece: &Piece, score: usize) -> crossterm::Result<()> {
     stdout.queue(cursor::Hide)?;
     stdout.queue(terminal::Clear(ClearType::All))?;
 
-    // Top border - note we double the width in characters
     stdout.queue(cursor::MoveTo(0, 0))?;
     writeln!(stdout, "+{}+", "-".repeat(WIDTH * 2))?;
 
@@ -221,7 +191,6 @@ fn draw_board(stdout: &mut impl Write, board: &Board, piece: &Piece, score: usiz
         for c in 0..WIDTH {
             match board[r][c] {
                 Cell::Empty => {
-                    // print two spaces with default background to create a "cell"
                     stdout.queue(ResetColor)?;
                     stdout.queue(Print("  "))?;
                 }
@@ -239,10 +208,8 @@ fn draw_board(stdout: &mut impl Write, board: &Board, piece: &Piece, score: usiz
     stdout.queue(cursor::MoveTo(0, (HEIGHT + 1) as u16))?;
     writeln!(stdout, "+{}+", "-".repeat(WIDTH * 2))?;
 
-    // Overlay current piece (drawn after board so it appears on top)
     for (x, y) in piece.positions() {
         if y >= 0 && y < HEIGHT as i32 && x >= 0 && x < WIDTH as i32 {
-            // each logical cell is two characters wide, so x position must be scaled
             let col_pos = 1 + x * 2;
             let row_pos = 1 + y;
             stdout.queue(cursor::MoveTo(col_pos as u16, row_pos as u16))?;
@@ -253,35 +220,55 @@ fn draw_board(stdout: &mut impl Write, board: &Board, piece: &Piece, score: usiz
         }
     }
 
-    // Stats section
     let info_y = (HEIGHT + 3) as u16;
     stdout.queue(cursor::MoveTo(0, info_y))?;
     writeln!(stdout, "Score: {}", score)?;
     writeln!(stdout, "Controls: ← → ↓ ↑ Space  Q")?;
-    writeln!(stdout, "Pro tip: If you lose, blame RNG.")?;
+    writeln!(stdout, "Next:")?;
+
+    for (bx, by) in &next_piece.blocks {
+        let col = piece_color(next_piece.id);
+        stdout.queue(SetBackgroundColor(col))?;
+        stdout.queue(cursor::MoveTo((2 + bx * 2) as u16, info_y + 4 + *by as u16))?;
+        stdout.queue(Print("  "))?;
+        stdout.queue(ResetColor)?;
+    }
 
     stdout.flush()?;
     Ok(())
 }
 
+// [music]
+fn play_music() {
+    thread::spawn(|| {
+        let bytes = include_bytes!("../assets/791018.mp3");
+        let cursor = Cursor::new(bytes);
+        if let Ok((_stream, handle)) = OutputStream::try_default() {
+            if let Ok(source) = Decoder::new(cursor) {
+                let sink = Sink::try_new(&handle).unwrap();
+                sink.append(source.repeat_infinite());
+                sink.sleep_until_end();
+            }
+        }
+    });
+}
+
+// [game loop]
 fn main() -> crossterm::Result<()> {
-    play_music(); // 🎵 start looping cool tetris song assets/791018.mp3
+    play_music();
     let mut stdout = stdout();
-    execute!(stdout, terminal::EnterAlternateScreen, cursor::Hide).unwrap();
-    terminal::enable_raw_mode().unwrap();
+    crossterm::execute!(stdout, terminal::EnterAlternateScreen, cursor::Hide)?;
     terminal::enable_raw_mode()?;
-    stdout.execute(terminal::EnterAlternateScreen)?;
-    stdout.execute(cursor::Hide)?;
-    let res = run_game(&mut stdout);
-    stdout.execute(cursor::Show)?;
-    stdout.execute(terminal::LeaveAlternateScreen)?;
+    let result = run_game(&mut stdout);
+    crossterm::execute!(stdout, cursor::Show, terminal::LeaveAlternateScreen)?;
     terminal::disable_raw_mode()?;
-    res
+    result
 }
 
 fn run_game(stdout: &mut impl Write) -> crossterm::Result<()> {
     let mut board = create_empty_board();
     let mut current = Piece::random_spawn();
+    let mut next = Piece::random_spawn();
     let mut last_tick = Instant::now();
     let mut score = 0usize;
     let mut gravity_ms = TICK_MS;
@@ -339,7 +326,8 @@ fn run_game(stdout: &mut impl Write) -> crossterm::Result<()> {
                         if cleared > 0 {
                             score += 100 * (1 << (cleared - 1));
                         }
-                        current = Piece::random_spawn();
+                        current = next;
+                        next = Piece::random_spawn();
                         if collides(&board, &current) {
                             break 'game;
                         }
@@ -360,9 +348,10 @@ fn run_game(stdout: &mut impl Write) -> crossterm::Result<()> {
                 if cleared > 0 {
                     score += 100 * (1 << (cleared - 1));
                 }
-                current = Piece::random_spawn();
+                current = next;
+                next = Piece::random_spawn();
                 if collides(&board, &current) {
-                    break;
+                    break 'game;
                 }
                 gravity_ms = max(100, TICK_MS.saturating_sub((score / 500) as u64 * 20));
             } else {
@@ -370,12 +359,11 @@ fn run_game(stdout: &mut impl Write) -> crossterm::Result<()> {
             }
         }
 
-        draw_board(stdout, &board, &current, score)?;
+        draw_board(stdout, &board, &current, &next, score)?;
         thread::sleep(Duration::from_millis(8));
     }
 
-    // Game over — don’t cry, just blame lag.
-    stdout.queue(cursor::MoveTo(0, (HEIGHT + 6) as u16))?;
+    stdout.queue(cursor::MoveTo(0, (HEIGHT + 10) as u16))?;
     writeln!(stdout, "💀 Game Over! Final score: {}", score)?;
     writeln!(stdout, "Press any key to exit...")?;
     stdout.flush()?;
