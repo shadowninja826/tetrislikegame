@@ -1,4 +1,4 @@
-# tetrislikegame
+# tetris like game
 tetris like game written in Rust for Ubuntu 24
 ```
 sudo apt install libpulse-dev alsa-utils libasound2-dev pkg-config -y 
