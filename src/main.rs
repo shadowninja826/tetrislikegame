@@ -31,10 +31,10 @@ Developer Notes:
 use crossterm::{
     cursor,
     event::{self, Event, KeyCode, KeyEvent},
-    style::{Color, PrintStyledContent, Stylize},
+    style::{Color, SetBackgroundColor, ResetColor, Print},
     terminal::{self, ClearType},
     ExecutableCommand, QueueableCommand,
-    execute, 
+    execute,
 };
 
 use rand::seq::SliceRandom;
@@ -204,23 +204,32 @@ fn piece_color(id: u8) -> Color {
     }
 }
 
+/// Draws the board using BACKGROUND COLOR and double-space cells.
+/// Each logical cell occupies two character columns (" "), which prevents
+/// adjacent cells from visually merging in terminals with tight glyph metrics.
 fn draw_board(stdout: &mut impl Write, board: &Board, piece: &Piece, score: usize) -> crossterm::Result<()> {
     stdout.queue(cursor::Hide)?;
     stdout.queue(terminal::Clear(ClearType::All))?;
 
-    // Draw top border 
+    // Top border - note we double the width in characters
     stdout.queue(cursor::MoveTo(0, 0))?;
-    writeln!(stdout, "+{}+", "-".repeat(WIDTH))?;
+    writeln!(stdout, "+{}+", "-".repeat(WIDTH * 2))?;
 
     for r in 0..HEIGHT {
         stdout.queue(cursor::MoveTo(0, (r + 1) as u16))?;
         write!(stdout, "|")?;
         for c in 0..WIDTH {
             match board[r][c] {
-                Cell::Empty => write!(stdout, " ")?,
+                Cell::Empty => {
+                    // print two spaces with default background to create a "cell"
+                    stdout.queue(ResetColor)?;
+                    stdout.queue(Print("  "))?;
+                }
                 Cell::Filled(id) => {
-                    let symbol = "█".with(piece_color(id));
-                    stdout.queue(PrintStyledContent(symbol))?;
+                    let col = piece_color(id);
+                    stdout.queue(SetBackgroundColor(col))?;
+                    stdout.queue(Print("  "))?;
+                    stdout.queue(ResetColor)?;
                 }
             }
         }
@@ -228,14 +237,19 @@ fn draw_board(stdout: &mut impl Write, board: &Board, piece: &Piece, score: usiz
     }
 
     stdout.queue(cursor::MoveTo(0, (HEIGHT + 1) as u16))?;
-    writeln!(stdout, "+{}+", "-".repeat(WIDTH))?;
+    writeln!(stdout, "+{}+", "-".repeat(WIDTH * 2))?;
 
-    // Overlay current piece
+    // Overlay current piece (drawn after board so it appears on top)
     for (x, y) in piece.positions() {
         if y >= 0 && y < HEIGHT as i32 && x >= 0 && x < WIDTH as i32 {
-            stdout.queue(cursor::MoveTo((1 + x) as u16, (1 + y) as u16))?;
-            let symbol = "▒".with(piece_color(piece.id));
-            stdout.queue(PrintStyledContent(symbol))?;
+            // each logical cell is two characters wide, so x position must be scaled
+            let col_pos = 1 + x * 2;
+            let row_pos = 1 + y;
+            stdout.queue(cursor::MoveTo(col_pos as u16, row_pos as u16))?;
+            let col = piece_color(piece.id);
+            stdout.queue(SetBackgroundColor(col))?;
+            stdout.queue(Print("  "))?;
+            stdout.queue(ResetColor)?;
         }
     }
 
@@ -369,3 +383,4 @@ fn run_game(stdout: &mut impl Write) -> crossterm::Result<()> {
     if let Event::Key(_) = event::read()? {}
     Ok(())
 }
+
